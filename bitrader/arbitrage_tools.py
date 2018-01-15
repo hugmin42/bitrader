@@ -69,6 +69,52 @@ COIN_MAP = {
             coin_code='ETH',
             coin_name='Ethereum',
             exchange_name='Kraken'),
+        'ripple': dict(
+            coin_code='XRP',
+            coin_name='Ripple',
+            exchange_name='Kraken'),
+        'zcash': dict(
+            coin_code='ZEC',
+            coin_name='ZCash',
+            exchange_name='Kraken'),
+        'bcash': dict(
+            coin_code='BCH',
+            coin_name='Bitcoin Cash',
+            exchange_name='Kraken'),
+        'dash': dict(
+            coin_code='DASH',
+            coin_name='Dash',
+            exchange_name='Kraken'),
+    },
+    'altcointrader': {
+        'bitcoin': dict(
+            coin_code='XBT',
+            coin_name='Bitcoin',
+            exchange_name='Altcointrader'),
+        'litecoin': dict(
+            coin_code='LTC',
+            coin_name='Litecoin',
+            exchange_name='Altcointrader'),
+        'ethereum': dict(
+            coin_code='ETH',
+            coin_name='Ethereum',
+            exchange_name='Altcointrader'),
+        'ripple': dict(
+            coin_code='XRP',
+            coin_name='Ripple',
+            exchange_name='Altcointrader'),
+        'zcash': dict(
+            coin_code='ZEC',
+            coin_name='ZCash',
+            exchange_name='Altcointrader'),
+        'bcash': dict(
+            coin_code='BCH',
+            coin_name='Bitcoin Cash',
+            exchange_name='Altcointrader'),
+        'dash': dict(
+            coin_code='DASH',
+            coin_name='Dash',
+            exchange_name='Altcointrader'),
     },
 }
 
@@ -124,7 +170,10 @@ def kraken_order_book(book_type: str, currency_code: str = 'EUR', coin_code: str
     kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
 
     if not pair:
-        pair = f'X{coin_code}Z{currency_code}'
+        if coin_code in ['BCH', 'DASH']:
+            pair = f'{coin_code}{currency_code}'
+        else:
+            pair = f'X{coin_code}Z{currency_code}'
     orders = kraken_api.query_public('Depth', {'pair': pair})
 
     df = pd.DataFrame(
@@ -203,6 +252,24 @@ def prepare_order_book(order_book, book_type: str, bitcoin_column: str = 'volume
     return df
 
 
+def get_prepared_order_book(exchange="luno", coin_code='XBT', book_type='asks'):
+    if exchange == "luno":
+        if coin_code == 'XBT':
+            order_book = luno_order_book(book_type=book_type, pair='XBTZAR')
+        else:
+            raise AttributeError(f'{coin_code} is not yet supported on Luno')
+    elif exchange == "ice3x":
+        order_book = ice3x_order_book(book_type=book_type, coin_code=coin_code)
+    elif exchange == 'altcointrader':
+        order_book = altcointrader_order_book(USERAGENT, CFUID, CFCLEARANCE, book_type=book_type, coin_code=coin_code)
+    else:
+        raise AttributeError(f'{exchange} is not a valid exchange')
+
+    prepared_order_book = prepare_order_book(order_book, book_type=book_type)
+
+    return prepared_order_book
+
+
 def coin_exchange(df, limit, order_type: str, bitcoin_column: str = 'volume', currency_column: str = 'value'):
     """Convert specified amount of bitcoin to currency or currency to bitcoin
 
@@ -242,12 +309,7 @@ def get_books(coin_code: str = 'XBT', exchange_name: str = 'Luno'):
     """
     eur_asks = prepare_order_book(kraken_order_book('asks', coin_code=coin_code), 'asks')
 
-    if exchange_name.lower() == 'luno':
-        zar_bids = prepare_order_book(luno_order_book('bids'), 'bids')
-    elif exchange_name.lower() == 'ice3x':
-        zar_bids = prepare_order_book(ice3x_order_book('bids', coin_code=coin_code), 'bids')
-    else:
-        raise KeyError(f'{exchange_name} is not a valid exchange_name')
+    zar_bids = get_prepared_order_book(exchange=exchange_name, coin_code=coin_code, book_type='bids')
 
     return eur_asks, zar_bids
 
@@ -381,7 +443,7 @@ def optimal(max_invest: int = 1000000, coin: str = 'bitcoin', exchange='luno', r
 
     books = get_books(
         coin_code=COIN_MAP[exchange][coin]['coin_code'],
-        exchange_name=COIN_MAP[exchange][coin]['exchange_name']
+        exchange_name=exchange
     )
 
     results = []
@@ -455,7 +517,7 @@ def reverse_arb(amount, coin='litecoin', exchange_buy='ice3x', exchange_sell='kr
     return f'R{amount:.0f}, R{rands:.0f}, {(rands - amount)/amount * 100:.2f}%'
 
 
-def altcointrader_order_books(user_agent: str, cfduid: str, cfclearance: str, book_type: str, coin_code: str = 'XBT'):
+def altcointrader_order_book(user_agent: str, cfduid: str, cfclearance: str, book_type: str, coin_code: str = 'XBT'):
     """To use this function you need to manually get the cfduid and cfclearance  by copying the cookie value from your browser.
 
     """

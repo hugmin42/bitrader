@@ -10,8 +10,8 @@ from decimal import Decimal
 import os
 
 from bitrader.arbitrage_tools import (
-    altcointrader_order_books, coin_exchange, ice3x_order_book,
-    kraken_order_book, luno_order_book, prepare_order_book
+    altcointrader_order_book, coin_exchange, ice3x_order_book,
+    kraken_order_book, luno_order_book, prepare_order_book, get_prepared_order_book
 )
 
 CFUID = os.getenv('CFUID')
@@ -37,7 +37,7 @@ def eth_luno_xrp_kraken_arb(amount=Decimal('10000')):
     xrp = coin_exchange(xrp_asks, limit=eur, order_type='buy')
 
     xrp_bids = prepare_order_book(
-        altcointrader_order_books(USERAGENT, CFUID, CFCLEARANCE, 'bids', 'xrp'), book_type='bids')
+        altcointrader_order_book(USERAGENT, CFUID, CFCLEARANCE, 'bids', 'xrp'), book_type='bids')
 
     zar_out = coin_exchange(xrp_bids, limit=Decimal(xrp), order_type='sell')
     zar_out = zar_out * (1 - Decimal('0.008'))
@@ -65,7 +65,7 @@ def btc_luno_xrp_kraken_arb(amount=Decimal('10000')):
     xrp = coin_exchange(xrp_asks, limit=btc, order_type='buy')
 
     xrp_bids = prepare_order_book(
-        altcointrader_order_books(USERAGENT, CFUID, CFCLEARANCE, book_type='bids', coin_code='xrp'), book_type='bids')
+        altcointrader_order_book(USERAGENT, CFUID, CFCLEARANCE, book_type='bids', coin_code='xrp'), book_type='bids')
 
     zar_out = coin_exchange(xrp_bids, limit=Decimal(xrp), order_type='sell')
     zar_out = zar_out * (1 - Decimal('0.008'))
@@ -100,7 +100,7 @@ def eth_alt_arb(amount=Decimal('10000'), exchange='altcointrader', verbose=False
             ice3x_order_book('bids', coin_code='ETH'), 'bids')
     elif exchange == 'altcointrader':
         eth_bids = prepare_order_book(
-            altcointrader_order_books(USERAGENT, CFUID, CFCLEARANCE, book_type='bids', coin_code='eth'),
+            altcointrader_order_book(USERAGENT, CFUID, CFCLEARANCE, book_type='bids', coin_code='eth'),
             book_type='bids')
     else:
         raise AttributeError(f'{exchange} is not a valid exchange')
@@ -128,7 +128,7 @@ def eth_alt_arb_to_luno(amount=Decimal('10000'), exchange='altcointrader', verbo
         eth_asks = prepare_order_book(ice3x_order_book('asks', coin_code='ETH'), book_type='asks')
     elif exchange == 'altcointrader':
         eth_asks = prepare_order_book(
-            altcointrader_order_books(
+            altcointrader_order_book(
                 USERAGENT, CFUID, CFCLEARANCE, book_type='asks', coin_code='ETH'), book_type='asks')
     else:
         raise AttributeError(f'{exchange} is not a valid exchange')
@@ -152,24 +152,6 @@ def eth_alt_arb_to_luno(amount=Decimal('10000'), exchange='altcointrader', verbo
         print('ROI\t\t', str(round(roi, 2)) + '%')
 
     return btc, eth, zar_out, roi
-
-
-def get_prepared_order_book(exchange="luno", coin_code='XBT', book_type='asks'):
-    if exchange == "luno":
-        if coin_code == 'XBT':
-            order_book = luno_order_book(book_type=book_type, pair='XBTZAR')
-        else:
-            raise AttributeError(f'{coin_code} is not yet supported on Luno')
-    elif exchange == "ice3x":
-        order_book = ice3x_order_book(book_type=book_type, coin_code=coin_code)
-    elif exchange == 'altcointrader':
-        order_book = altcointrader_order_books(USERAGENT, CFUID, CFCLEARANCE, book_type=book_type, coin_code=coin_code)
-    else:
-        raise AttributeError(f'{exchange} is not a valid exchange')
-
-    prepared_order_book = prepare_order_book(order_book, book_type=book_type)
-
-    return prepared_order_book
 
 
 def local_arbitrage(amount=Decimal('10000'), coin_code='ETH', verbose=False, start="ice3x", end="altcointrader"):
