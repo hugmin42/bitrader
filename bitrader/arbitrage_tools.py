@@ -123,7 +123,7 @@ def kraken_order_book(book_type: str, currency_code: str = 'EUR', coin_code: str
     """
     import krakenex
 
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY, conn=krakenex.Connection())
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
 
     if not pair:
         pair = f'X{coin_code}Z{currency_code}'
@@ -459,7 +459,7 @@ def reverse_arb(amount, coin='litecoin', exchange_buy='ice3x', exchange_sell='kr
 
 @retry(exception=(HTTPException, timeout, ValueError), report=print)
 def get_balance(asset: str = None):
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY, conn=krakenex.Connection())
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
     balance = kraken_api.query_private('Balance')
 
     if asset is not None:
@@ -472,7 +472,7 @@ def get_balance(asset: str = None):
 
 @retry(exception=(HTTPException, timeout, ValueError), report=print)
 def withdraw(asset: str = 'XBT', wallet_key: str = 'Luno', amount=None):
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY, conn=krakenex.Connection())
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
 
     if amount is None:
         amount = get_balance(asset=asset)
@@ -489,7 +489,7 @@ def withdraw(asset: str = 'XBT', wallet_key: str = 'Luno', amount=None):
 def get_coins(amount=None):
     if not amount:
         # Use full balance
-        kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY, conn=krakenex.Connection())
+        kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
         amount = kraken_api.query_private('Balance')['result']['ZEUR']
         print(amount)
 
@@ -506,7 +506,7 @@ def buy_coins(euro=None, coins=None):
     if coins is None:
         coins = get_coins(amount=euro)
 
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY, conn=krakenex.Connection())
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
     result = kraken_api.query_private(
         'AddOrder', {'pair': 'XXBTZEUR', 'type': 'buy', 'ordertype': 'market', 'volume': coins})
 
