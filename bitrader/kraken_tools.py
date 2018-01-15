@@ -64,3 +64,18 @@ def buy_coins(euro=None, coins=None):
 
     return result
 
+
+@retry(exception=(HTTPException, timeout, ValueError), report=print)
+def get_deposit_status(asset: str = 'EUR'):
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
+    status = kraken_api.query_private('DepositStatus', {'asset': asset})
+
+    return status
+
+
+@retry(exception=(HTTPException, timeout, ValueError), report=print)
+def get_deposit_limit(asset: str = 'EUR'):
+    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
+    limit = kraken_api.query_private('DepositMethods', {'asset': asset})
+
+    return limit
