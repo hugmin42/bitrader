@@ -455,8 +455,6 @@ def reverse_arb(amount, coin='litecoin', exchange_buy='ice3x', exchange_sell='kr
     return f'R{amount:.0f}, R{rands:.0f}, {(rands - amount)/amount * 100:.2f}%'
 
 
-
-
 def altcointrader_order_books(user_agent: str, cfduid: str, cfclearance: str, book_type: str, coin_code: str = 'XBT'):
     """To use this function you need to manually get the cfduid and cfclearance  by copying the cookie value from your browser.
 

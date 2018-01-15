@@ -11,11 +11,18 @@ KRAKEN_PRIVATE_KEY = os.environ.get('KRAKEN_PRIVATE_KEY')
 
 @retry(exception=(HTTPException, timeout, ValueError), report=print)
 def get_balance(asset: str = None):
+    """Get balance, supports EUR, XBT, ETH, XRP and other assets which don't require Z or X prefix
+
+    """
     kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
     balance = kraken_api.query_private('Balance')
 
     if asset is not None:
-        amount = balance['result']['X' + asset]
+        if asset == 'EUR':
+            asset = 'ZEUR'
+        elif asset in ['XBT', 'ETH', 'XRP']:
+            asset = 'X' + asset
+        amount = balance['result'][asset]
         print('{asset} balance: {amount}'.format(asset=asset, amount=amount))
         return amount
     else:
