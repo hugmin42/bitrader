@@ -121,8 +121,6 @@ def kraken_order_book(book_type: str, currency_code: str = 'EUR', coin_code: str
     """Kraken specific orderbook retrieval
 
     """
-    import krakenex
-
     kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
 
     if not pair:
@@ -457,69 +455,6 @@ def reverse_arb(amount, coin='litecoin', exchange_buy='ice3x', exchange_sell='kr
     return f'R{amount:.0f}, R{rands:.0f}, {(rands - amount)/amount * 100:.2f}%'
 
 
-@retry(exception=(HTTPException, timeout, ValueError), report=print)
-def get_balance(asset: str = None):
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
-    balance = kraken_api.query_private('Balance')
-
-    if asset is not None:
-        amount = balance['result']['X' + asset]
-        print('{asset} balance: {amount}'.format(asset=asset, amount=amount))
-        return amount
-    else:
-        return balance
-
-
-@retry(exception=(HTTPException, timeout, ValueError), report=print)
-def withdraw(asset: str = 'XBT', wallet_key: str = 'Luno', amount=None):
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
-
-    if amount is None:
-        amount = get_balance(asset=asset)
-        amount = round(float(amount), 8)
-    if round(float(amount), 2) > 0:
-        result = kraken_api.query_private('Withdraw', {'asset': asset, 'key': wallet_key, 'amount': amount})
-        print('Success!!', result)
-        return result
-    else:
-        print('All funds have been withdrawn from f{wallet_key}')
-
-
-@retry(exception=(HTTPException, timeout, ValueError), report=print)
-def get_coins(amount=None):
-    if not amount:
-        # Use full balance
-        kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
-        amount = kraken_api.query_private('Balance')['result']['ZEUR']
-        print(amount)
-
-    eur_asks = prepare_order_book(
-        kraken_order_book('asks', coin_code='XBT'), 'asks')
-
-    coins = coin_exchange(eur_asks, Decimal(amount), 'buy')
-    coins = str(round(coins, 6))
-    return coins
-
-
-@retry(exception=(HTTPException, timeout, ValueError), report=print)
-def buy_coins(euro=None, coins=None):
-    if coins is None:
-        coins = get_coins(amount=euro)
-
-    kraken_api = krakenex.API(key=KRAKEN_API_KEY, secret=KRAKEN_PRIVATE_KEY)
-    result = kraken_api.query_private(
-        'AddOrder', {'pair': 'XXBTZEUR', 'type': 'buy', 'ordertype': 'market', 'volume': coins})
-
-    return result
-
-
-def truncate(f, n):
-    """Truncates/pads a float f to n decimal places without rounding"""
-    s = '{}'.format(f)
-    if 'e' in s or 'E' in s:
-        return '{0:.{1}f}'.format(f, n)
-    i, p, d = s.partition('.')
-    return '.'.join([i, (d + '0' * n)[:n]])
 
 
 def altcointrader_order_books(user_agent: str, cfduid: str, cfclearance: str, book_type: str, coin_code: str = 'XBT'):
@@ -570,3 +505,12 @@ def altcointrader_order_books(user_agent: str, cfduid: str, cfclearance: str, bo
     df = pd.DataFrame(book)
 
     return df
+
+
+def truncate(f, n):
+    """Truncates/pads a float f to n decimal places without rounding"""
+    s = '{}'.format(f)
+    if 'e' in s or 'E' in s:
+        return '{0:.{1}f}'.format(f, n)
+    i, p, d = s.partition('.')
+    return '.'.join([i, (d + '0' * n)[:n]])
