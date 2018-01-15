@@ -67,7 +67,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
         'telepot>=12.4',
-        'krakenex>=0.1.4',
+        'krakenex>=2.0.0',
         'matplotlib',
         'seaborn',
         'pandas',
