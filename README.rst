@@ -11,6 +11,7 @@ Features being worked on at the moment:
 - Experiemental local arbitrage routes
 
 Version 0.12.0: Bot now sends graphs if you ask for /status :-)
+
 Version  0.9.1: Now also supports Ethereum and Litecoin!
 
 Quickstart
@@ -51,5 +52,19 @@ No parameters needed! Then type /start in chat with your brand new Bitcoin Arbit
 ------------
 
 
+Jupyter Notebook use
+------------
+
+.. code-block:: python
+
+    from dotenv import load_dotenv
+    load_dotenv('.env')  # Load environment
+
+    from bitrader.arbitrage_tools import (arbitrage,
+        optimal, reverse_arb, get_books, luno_order_book, ice3x_order_book, altcointrader_order_book,
+        prepare_order_book, coin_exchange, kraken_order_book, get_forex_buy_quote, COIN_MAP, truncate
+    )
+
+    from bitrader.kraken_tools import get_balance, withdraw, buy_coins, get_coins, get_deposit_status, get_deposit_limit
 
 
