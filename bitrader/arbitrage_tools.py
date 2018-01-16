@@ -314,6 +314,17 @@ def get_books(coin_code: str = 'XBT', exchange_name: str = 'Luno'):
     return eur_asks, zar_bids
 
 
+KRAKEN_WITHDRAWAL_FEES = {
+    'XBT': Decimal(0.001),
+    'ETH': Decimal(0.005),
+    'XRP': Decimal(0.02),
+    'LTC': Decimal(0.02),
+    'ZEC': Decimal(0.0001),
+    'BCH': Decimal(0.001),
+    'DASH': Decimal(0.005)
+    }
+
+
 def arbitrage(amount, coin_code='XBT', coin_name='bitcoin', exchange_name='Luno',
               exchange_rate=None, transfer_fees: bool = True, verbose: bool = False, books=None,
               trade_fees: bool = True):
@@ -321,10 +332,11 @@ def arbitrage(amount, coin_code='XBT', coin_name='bitcoin', exchange_name='Luno'
 
     :param amount: The amount in ZAR (TODO: also allow reverse
     :param coin_code: Default = XBT. LTC and ETH also supported.
-    :param coin_name: Default = Bitcoin. Litecoin and Ethereum also supported
-    :param exchange_name: Luno or Ice3x.
+    :param coin_name: Default = Bitcoin. Litecoin, Ethereum, Ripple, Dash, BCash, ZCash also supported
+    :param exchange_name: Luno or Ice3x or Altcointrader.
     :param exchange_rate: The ZAR / EURO Exchange rate.
-    :param transfer_fees: Whether to include FOREX fees or not. E.g. when you want to simulate money alrady in Europe.
+    :param transfer_fees: Whether to include FOREX fees or not. E.g. when you want to simulate money already in Europe.
+    :param trade_fees: Whether to include trading fees on selling exchange. E.g. Limit order on Luno
     :param verbose: Default = False. Whether to print the summary to command line
     :param books:
     :return: Dict with ROIC and summary of arbitrage
@@ -353,58 +365,75 @@ def arbitrage(amount, coin_code='XBT', coin_name='bitcoin', exchange_name='Luno'
 
         if transfer_fees:
             _swift_fee = Decimal(110)
-            _fnb_comission = min(max(transfer_amount * Decimal(0.0055), Decimal(140)), Decimal(650))
+            _fnb_commission = min(max(transfer_amount * Decimal(0.0055), Decimal(140)), Decimal(650))
             _kraken_deposit_fee = Decimal(15)  # Fees: https://www.kraken.com/en-us/help/faq
         else:
             _swift_fee = Decimal(0)
-            _fnb_comission = Decimal(0)
+            _fnb_commission = Decimal(0)
             _kraken_deposit_fee = Decimal(0)
 
-        capital = transfer_amount + _fnb_comission + _swift_fee
+        capital = transfer_amount + _fnb_commission + _swift_fee
 
         euros = transfer_amount / exchange_rate - _kraken_deposit_fee
         _kraken_fee = euros * Decimal(0.0026)  # TODO: Allow to specify lower tier, e.g. over $50k = 0.0024
 
-        _kraken_withdrawal_fee = Decimal(0.001)
-        _luno_deposit_fee = Decimal(0.0002)
+        _kraken_withdrawal_fee = KRAKEN_WITHDRAWAL_FEES[coin_code]
 
-        bitcoins = coin_exchange(eur_asks, euros - _kraken_fee, 'buy') - _kraken_withdrawal_fee - _luno_deposit_fee
+        _sell_exchange_deposit_fee = Decimal(0)
 
-        if trade_fees:
-            _luno_fees = bitcoins * Decimal(0.01)  # TODO: Allow to specify lower tier, e.g. over 10 BTC = 0.0075
-        else:
-            _luno_fees = Decimal(0)
+        if exchange_name == 'luno':
+            _sell_exchange_deposit_fee = Decimal(0.0002)
+
+        bitcoins = coin_exchange(eur_asks, euros - _kraken_fee,
+                                 'buy') - _kraken_withdrawal_fee - _sell_exchange_deposit_fee
+
+        _sell_exchange_fees = Decimal(0)
+
+        if exchange_name == 'luno':
+            if trade_fees:
+                _sell_exchange_fees = bitcoins * Decimal(0.01)  # TODO: Allow to specify lower tier
+
+        rands = coin_exchange(zar_bids, bitcoins - _sell_exchange_fees, 'sell')
+
+        _sell_exchange_zar_fees = Decimal(0)
+
+        if exchange_name != 'luno':
+            _sell_exchange_zar_fees = rands * Decimal('0.008')
+
+        rands = rands - _sell_exchange_zar_fees
+
+        btc_zar_exchange_rate = rands / (bitcoins - _sell_exchange_fees)
 
         if transfer_fees:
-            _luno_withdrawel_fee = Decimal(8.5)  # TODO: Check Ice3x fees
+            if exchange_name == 'altcointrader':
+                _sell_exchange_withdrawal_fee = Decimal(16) + min(rands * Decimal(0.005), Decimal(250))
+            else:
+                _sell_exchange_withdrawal_fee = Decimal(8.5)  # TODO: Check Ice3x fees
         else:
-            _luno_withdrawel_fee = Decimal(0)
+            _sell_exchange_withdrawal_fee = Decimal(0)
 
-        rands = coin_exchange(zar_bids, bitcoins - _luno_fees, 'sell')
-
-        btc_zar_exchange_rate = rands / (bitcoins - _luno_fees)
-
-        return_value = rands - _luno_withdrawel_fee
+        return_value = rands - _sell_exchange_withdrawal_fee
 
         total_fees = (
                 _swift_fee +
-                _fnb_comission +
+                _fnb_commission +
                 _kraken_fee * exchange_rate +
                 _kraken_deposit_fee * exchange_rate +
                 _kraken_withdrawal_fee * btc_zar_exchange_rate +
-                _luno_deposit_fee * btc_zar_exchange_rate +
-                _luno_fees * btc_zar_exchange_rate +
-                _luno_withdrawel_fee)
+                _sell_exchange_deposit_fee * btc_zar_exchange_rate +
+                _sell_exchange_fees * btc_zar_exchange_rate +
+                _sell_exchange_withdrawal_fee +
+                _sell_exchange_zar_fees)
 
         response = [
             f'Rands out: {capital:.2f}',
-            f'# forex conversion: R{_swift_fee + _fnb_comission:.2f}',
+            f'# forex conversion: R{_swift_fee + _fnb_commission:.2f}',
             f'Euro: {euros:.2f}',
             f'# kraken deposit and withdraw fee: R{(_kraken_deposit_fee * exchange_rate) + (_kraken_withdrawal_fee * btc_zar_exchange_rate):.2f}',
             f'# kraken trade fee: R{(_kraken_fee * exchange_rate):.2f}',
             f'{coin_name}: {bitcoins:.8f}',
-            f'# {exchange_name} deposit and withdraw fee: R{_luno_withdrawel_fee + (_luno_deposit_fee * btc_zar_exchange_rate):.2f}',
-            f'# {exchange_name} trade fee: R{(_luno_fees * btc_zar_exchange_rate):.2f}',
+            f'# {exchange_name} deposit and withdraw fee: R{_sell_exchange_withdrawal_fee + (_sell_exchange_deposit_fee * btc_zar_exchange_rate):.2f}',
+            f'# {exchange_name} trade fee: R{((_sell_exchange_fees * btc_zar_exchange_rate) + _sell_exchange_zar_fees):.2f}',
             f'Rands in: {rands:.2f}',
             '--------------------',
             f'Profit: {return_value - capital:.2f}',
