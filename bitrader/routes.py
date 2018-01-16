@@ -91,31 +91,44 @@ def eth_alt_arb(amount=Decimal('10000'), exchange='altcointrader'):
     btc = coin_exchange(btc_asks, limit=amount, order_type='buy')
 
     eth_asks = get_prepared_order_book(exchange='luno', coin_code='ETH', book_type='asks')
-    eth = coin_exchange(eth_asks, limit=btc, order_type='buy')
+    eth_out = coin_exchange(eth_asks, limit=btc, order_type='buy')
+
+    eth_fee = eth_out * Decimal('0.0025')
+    _start_trade_fee = eth_fee * (amount/eth_out)
+
+    eth_in = eth_out-eth_fee
 
     eth_bids = get_prepared_order_book(exchange=exchange, coin_code='ETH', book_type='bids')
-    zar_out = coin_exchange(eth_bids, limit=Decimal(eth), order_type='sell')
+    zar_in = coin_exchange(eth_bids, limit=Decimal(eth_in), order_type='sell')
 
-    zar_out = zar_out * (1 - Decimal('0.008'))
+    _end_trade_fee = zar_in * Decimal('0.008')
 
-    roi = ((zar_out - amount) / amount) * 100
-
-    return eth, zar_out, roi
+    return eth_out, eth_in, zar_in, _start_trade_fee, _end_trade_fee
 
 
 def eth_alt_arb_to_luno(amount=Decimal('10000'), exchange='altcointrader'):
     eth_asks = get_prepared_order_book(exchange=exchange, coin_code='ETH', book_type='asks')
-    eth = coin_exchange(eth_asks, limit=amount, order_type='buy')
+    eth_out = coin_exchange(eth_asks, limit=amount, order_type='buy')
+
+    if exchange == "altcointrader":
+        eth_fee = eth_out * Decimal('0.008')
+    elif exchange == "ice3x":
+        eth_fee = eth_out * Decimal('0.01')  # TODO Ice3x variable trading fees
+
+    _start_trade_fee = eth_fee * (amount / eth_out)
+
+    eth_in = eth_out - eth_fee
+
+    eth_fee_luno = eth_in * Decimal('0.0025')
+    _end_trade_fee = eth_fee_luno * (amount / eth_in)
 
     eth_bids = get_prepared_order_book(exchange='luno', coin_code='ETH', book_type='bids')
-    btc = coin_exchange(eth_bids, limit=eth, order_type='sell')
+    btc = coin_exchange(eth_bids, limit=(eth_in-eth_fee_luno), order_type='sell')
 
     btc_bids = get_prepared_order_book(exchange='luno', coin_code='XBT', book_type='bids')
-    zar_out = coin_exchange(btc_bids, limit=btc, order_type='sell')
+    zar_in = coin_exchange(btc_bids, limit=btc, order_type='sell')
 
-    roi = ((zar_out - amount) / amount) * 100
-
-    return eth, zar_out, roi
+    return eth_out, eth_in, zar_in, _start_trade_fee, _end_trade_fee
 
 
 def local_arbitrage(amount=Decimal('10000'), coin_code='ETH', verbose=False, start="ice3x", end="altcointrader"):
@@ -125,32 +138,59 @@ def local_arbitrage(amount=Decimal('10000'), coin_code='ETH', verbose=False, sta
 
     Altcointrader fees included when selling there
     """
-    zar = Decimal(amount)
+    zar_out = Decimal(amount)
+    _end_trade_fee = 0
 
     if start == "luno" and coin_code == "ETH":
-        coin, zar_out, roi = eth_alt_arb(amount=zar, exchange=end)
+        coin_out, coin_in, zar_in, _start_trade_fee, _end_trade_fee = eth_alt_arb(amount=zar_out, exchange=end)
 
     elif end == "luno" and coin_code == "ETH":
-        coin, zar_out, roi = eth_alt_arb_to_luno(amount=zar, exchange=start)
+        coin_out, coin_in, zar_in, _start_trade_fee, _end_trade_fee = eth_alt_arb_to_luno(amount=zar_out, exchange=start)
 
     else:
         coin_asks = get_prepared_order_book(exchange=start, coin_code=coin_code, book_type='asks')
-        coin = coin_exchange(coin_asks, limit=amount, order_type='buy')
+        coin_out = coin_exchange(coin_asks, limit=amount, order_type='buy')
+
+        _coin_fee = 0
+
+        if start == "altcointrader":
+            _coin_fee = coin_out * Decimal('0.008')
+        elif start == "ice3x":
+            _coin_fee = coin_out * Decimal('0.01')  # TODO Ice3x variable trading fees
+
+        _start_trade_fee = _coin_fee * (zar_out / coin_out)
+
+        coin_in = coin_out - _coin_fee
 
         coin_bids = get_prepared_order_book(exchange=end, coin_code=coin_code, book_type='bids')
-        zar_out = coin_exchange(coin_bids, limit=Decimal(coin), order_type='sell')
+        zar_in = coin_exchange(coin_bids, limit=Decimal(coin_in), order_type='sell')
 
         if end == "altcointrader":
-            zar_out = zar_out * (1 - Decimal('0.008'))
+            _end_trade_fee = zar_in * Decimal('0.008')
+        elif end == "ice3x":
+            _end_trade_fee = zar_in * Decimal('0.01')  # TODO Ice3x variable trading fees
 
-        roi = (zar_out - zar) / zar_out * 100
+    zar_in_after_fee = zar_in - _end_trade_fee
+    roi = (zar_in_after_fee - zar_out) / zar_out * 100
+    _total_fees = _start_trade_fee + _end_trade_fee
+
+    response = [
+        f'Rands out: R{zar_out:.2f}',
+        f'# {start} trade fee: R{_start_trade_fee:.2f}',
+        f'{coin_code}: {coin_in:.8f}',
+        f'# {end} trade fee: R{_end_trade_fee:.2f}',
+        f'Rands in: R{zar_in:.2f}',
+        '--------------------',
+        f'Profit: R{zar_in_after_fee - zar_out:.2f}',
+        f'ROI: {roi:.2f}%',
+        '--------------------',
+        f'ZAR/{coin_code} Buy: R{(zar_out / coin_out):.2f}',
+        f'ZAR/{coin_code} Sell: R{(zar_in / coin_in):.2f}',
+        '--------------------',
+        f'Total fees: R{_total_fees:.2f}',
+    ]
 
     if verbose:
-        print('ZAR In\t\t', 'R' + str(round(zar, 2)))
-        print('ZAR/Coin Buy\t', 'R' + str(round(zar / coin, 2)))
-        print('Coin\t\t', str(round(coin, 6)))
-        print('ZAR/Coin Sell\t', 'R' + str(round(zar_out / coin, 2)))
-        print('ZAR Out\t\t', 'R' + str(round(zar_out, 2)))
-        print('ROI\t\t', str(round(roi, 2)) + '%')
+        print('\n'.join(response))
 
-    return coin, zar_out, roi
+    return {'roi': roi, 'summary': '\n'.join(response)}
