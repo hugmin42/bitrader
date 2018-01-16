@@ -86,72 +86,36 @@ def btc_luno_xrp_kraken_arb(amount=Decimal('10000')):
     return zar, btc, xrp
 
 
-def eth_alt_arb(amount=Decimal('10000'), exchange='altcointrader', verbose=False):
-    zar = amount
+def eth_alt_arb(amount=Decimal('10000'), exchange='altcointrader'):
+    btc_asks = get_prepared_order_book(exchange='luno', coin_code='XBT', book_type='asks')
+    btc = coin_exchange(btc_asks, limit=amount, order_type='buy')
 
-    btc_asks = prepare_order_book(luno_order_book(book_type='asks', pair='XBTZAR'), book_type='asks')
-    btc = coin_exchange(btc_asks, limit=zar, order_type='buy')
-
-    eth_asks = prepare_order_book(luno_order_book(book_type='asks', pair='ETHXBT'), book_type='asks')
+    eth_asks = get_prepared_order_book(exchange='luno', coin_code='ETH', book_type='asks')
     eth = coin_exchange(eth_asks, limit=btc, order_type='buy')
 
-    if exchange == 'ice3x':
-        eth_bids = prepare_order_book(
-            ice3x_order_book('bids', coin_code='ETH'), 'bids')
-    elif exchange == 'altcointrader':
-        eth_bids = prepare_order_book(
-            altcointrader_order_book(USERAGENT, CFUID, CFCLEARANCE, book_type='bids', coin_code='eth'),
-            book_type='bids')
-    else:
-        raise AttributeError(f'{exchange} is not a valid exchange')
-
+    eth_bids = get_prepared_order_book(exchange=exchange, coin_code='ETH', book_type='bids')
     zar_out = coin_exchange(eth_bids, limit=Decimal(eth), order_type='sell')
+
     zar_out = zar_out * (1 - Decimal('0.008'))
 
-    roi = ((zar_out - zar) / zar) * 100
+    roi = ((zar_out - amount) / amount) * 100
 
-    if verbose:
-        print('BTC/ETH\t', btc / eth)
-        print('ZAR/ETH\t', zar / eth)
-        print('ETH\t', eth)
-        print('ZAR/ETH\t', zar_out / eth)
-        print('ZAR\t', zar_out)
-        print('ROI\t', roi)
-
-    return btc, eth, zar_out, roi
+    return eth, zar_out, roi
 
 
-def eth_alt_arb_to_luno(amount=Decimal('10000'), exchange='altcointrader', verbose=False):
-    zar = amount
-
-    if exchange == 'ice3x':
-        eth_asks = prepare_order_book(ice3x_order_book('asks', coin_code='ETH'), book_type='asks')
-    elif exchange == 'altcointrader':
-        eth_asks = prepare_order_book(
-            altcointrader_order_book(
-                USERAGENT, CFUID, CFCLEARANCE, book_type='asks', coin_code='ETH'), book_type='asks')
-    else:
-        raise AttributeError(f'{exchange} is not a valid exchange')
-
+def eth_alt_arb_to_luno(amount=Decimal('10000'), exchange='altcointrader'):
+    eth_asks = get_prepared_order_book(exchange=exchange, coin_code='ETH', book_type='asks')
     eth = coin_exchange(eth_asks, limit=amount, order_type='buy')
 
-    eth_bids = prepare_order_book(luno_order_book(book_type='bids', pair='ETHXBT'), book_type='bids')
+    eth_bids = get_prepared_order_book(exchange='luno', coin_code='ETH', book_type='bids')
     btc = coin_exchange(eth_bids, limit=eth, order_type='sell')
 
-    btc_bids = prepare_order_book(luno_order_book(book_type='bids', pair='XBTZAR'), book_type='bids')
+    btc_bids = get_prepared_order_book(exchange='luno', coin_code='XBT', book_type='bids')
     zar_out = coin_exchange(btc_bids, limit=btc, order_type='sell')
 
-    roi = ((zar_out - zar) / zar) * 100
+    roi = ((zar_out - amount) / amount) * 100
 
-    if verbose:
-        print('ZAR In\t\t', 'R' + str(round(zar, 2)))
-        print('ZAR/ETH Buy\t', 'R' + str(round(zar / eth, 2)))
-        print('ETH\t\t', str(round(eth, 6)))
-        print('ZAR/ETH Sell\t', 'R' + str(round(zar_out / eth, 2)))
-        print('ZAR Out\t\t', 'R' + str(round(zar_out, 2)))
-        print('ROI\t\t', str(round(roi, 2)) + '%')
-
-    return btc, eth, zar_out, roi
+    return eth, zar_out, roi
 
 
 def local_arbitrage(amount=Decimal('10000'), coin_code='ETH', verbose=False, start="ice3x", end="altcointrader"):
@@ -164,10 +128,10 @@ def local_arbitrage(amount=Decimal('10000'), coin_code='ETH', verbose=False, sta
     zar = Decimal(amount)
 
     if start == "luno" and coin_code == "ETH":
-        _, coin, zar_out, roi = eth_alt_arb(amount=zar, exchange=end)
+        coin, zar_out, roi = eth_alt_arb(amount=zar, exchange=end)
 
     elif end == "luno" and coin_code == "ETH":
-        _, coin, zar_out, roi = eth_alt_arb_to_luno(amount=zar, exchange=start)
+        coin, zar_out, roi = eth_alt_arb_to_luno(amount=zar, exchange=start)
 
     else:
         coin_asks = get_prepared_order_book(exchange=start, coin_code=coin_code, book_type='asks')

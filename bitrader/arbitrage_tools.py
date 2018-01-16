@@ -256,6 +256,8 @@ def get_prepared_order_book(exchange="luno", coin_code='XBT', book_type='asks'):
     if exchange == "luno":
         if coin_code == 'XBT':
             order_book = luno_order_book(book_type=book_type, pair='XBTZAR')
+        elif coin_code == 'ETH':
+            order_book = luno_order_book(book_type=book_type, pair='ETHXBT')
         else:
             raise AttributeError(f'{coin_code} is not yet supported on Luno')
     elif exchange == "ice3x":
